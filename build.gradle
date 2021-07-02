@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation("com.dslplatform:dsl-json-java8:1+")
+    annotationProcessor("com.dslplatform:dsl-json-java8:1+")
 
     implementation("org.apache.commons:commons-lang3:3+")
 
