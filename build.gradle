@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+group 'me.walkerknapp'
+version '0.0.1'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("com.dslplatform:dsl-json-java8:1+")
+
+    implementation("org.apache.commons:commons-lang3:3+")
+
+    implementation("org.slf4j:slf4j-api") {
+        version {
+            prefer("2+")
+        }
+    }
+}
