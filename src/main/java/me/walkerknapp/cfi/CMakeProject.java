@@ -7,4 +7,8 @@ import java.nio.file.Path;
  */
 public class CMakeProject {
     private Path sourceDirectory;
+
+    public Path getSourceDirectory() {
+        return this.sourceDirectory;
+    }
 }
