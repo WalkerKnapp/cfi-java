@@ -7,6 +7,7 @@ import me.walkerknapp.cfi.structs.Index;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
@@ -37,7 +38,7 @@ public class CMakeInstance {
         this.dslJson = new DslJson<>(Settings.<CMakeInstance>withRuntime().
                 allowArrayFormat(true).includeServiceLoader().withContext(this));
 
-        this.clientName = "cfijava" + UUID.randomUUID().toString().replace('-', '.');
+        this.clientName = "cfijava" + UUID.randomUUID().toString().replace("-", "");
     }
 
     public CMakeInstance(CMakeProject project, Path targetPath) {
@@ -55,7 +56,8 @@ public class CMakeInstance {
                 .supplyAsync(() -> {
                     try {
                         Path queryPath = getApiQueryPath();
-                        Files.createFile(queryPath);
+                        Path requestFile = queryPath.resolve(query.getQueryFileName());
+                        Files.createFile(requestFile);
 
                         Path replyPath = getApiReplyPath();
                         Path previousIndex = Files.list(replyPath)
@@ -96,17 +98,47 @@ public class CMakeInstance {
                         }
 
                         // TODO: Read off this input file
-                        return null;
+                        var replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
+                        if (replies == null) {
+                            throw new IllegalStateException("CMake didn't create a response for our client (" + this.clientName + ").");
+                        }
+                        var queryReply = replies.get(query.getQueryFileName());
+                        if (queryReply == null) {
+                            throw new IllegalStateException("CMake didn't respond to the query " + query.getQueryFileName() + " from client " + this.clientName);
+                        }
 
+                        // Read the object we queried for
+                        T cfiObject;
+                        try (InputStream queryObjectIs = Files.newInputStream(replyPath.resolve(queryReply.jsonFile))) {
+                            cfiObject = dslJson.deserialize(query.getObjClass(), queryObjectIs);
+                        }
 
+                        // Clean up our request file
+                        Files.delete(requestFile);
+
+                        return cfiObject;
                     } catch (IOException e) {
                         throw new CompletionException(e);
                     }
                 }, executorService);
     }
 
+    private <T> CompletableFuture<T> readReplyObject(Class<T> replyClass, String jsonFile) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Path replyObjectPath = getApiReplyPath().resolve(jsonFile);
+
+                try (InputStream is = Files.newInputStream(replyObjectPath)) {
+                    return dslJson.deserialize(replyClass, is);
+                }
+            } catch (IOException e) {
+                throw new CompletionException(e);
+            }
+        }, executorService);
+    }
+
     private Path getApiQueryPath() throws IOException {
-        Path queryPath = targetPath.resolve(".cmake").resolve("api").resolve("v1").resolve("query").resolve(this.clientName);
+        Path queryPath = targetPath.resolve(".cmake").resolve("api").resolve("v1").resolve("query").resolve("client-" + this.clientName);
         Files.createDirectories(queryPath);
         return queryPath;
     }

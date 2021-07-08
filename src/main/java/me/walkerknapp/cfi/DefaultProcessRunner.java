@@ -10,6 +10,7 @@ public class DefaultProcessRunner implements ProcessRunner {
         ProcessBuilder pb = new ProcessBuilder();
         pb.directory(workingDir);
         pb.command(args);
+        pb.inheritIO();
 
         Process process = pb.start();
 

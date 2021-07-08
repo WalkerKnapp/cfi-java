@@ -54,7 +54,7 @@ public class CodeModel implements CFIObject {
             public int projectIndex;
 
             @JsonAttribute
-            public int targetIndexes;
+            public List<Integer> targetIndexes;
 
             @JsonAttribute
             public MinimumCMakeVersion minimumCMakeVersion;

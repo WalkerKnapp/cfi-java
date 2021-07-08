@@ -48,14 +48,17 @@ public class Executables {
         String systemPath = System.getenv("PATH");
         if (systemPath != null) {
             for (String systemPathEntry : StringUtils.split(systemPath, File.pathSeparatorChar)) {
-                cmakeExecutablePath = Files.list(Paths.get(systemPathEntry))
-                        .filter(path -> {
-                            String fileName = path.getFileName().toString().toLowerCase();
-                            return "cmake".equals(fileName) || "cmake.exe".equals(fileName);
-                        }).filter(path -> isPathValid(path, "From System Path"))
-                        .findAny().orElse(null);
-                if (cmakeExecutablePath != null) {
-                    return cmakeExecutablePath;
+                Path systemPathEntryPath = Paths.get(systemPathEntry);
+                if (Files.exists(systemPathEntryPath)) {
+                    cmakeExecutablePath = Files.list(Paths.get(systemPathEntry))
+                            .filter(path -> {
+                                String fileName = path.getFileName().toString().toLowerCase();
+                                return "cmake".equals(fileName) || "cmake.exe".equals(fileName);
+                            }).filter(path -> isPathValid(path, "From System Path"))
+                            .findAny().orElse(null);
+                    if (cmakeExecutablePath != null) {
+                        return cmakeExecutablePath;
+                    }
                 }
             }
         }
