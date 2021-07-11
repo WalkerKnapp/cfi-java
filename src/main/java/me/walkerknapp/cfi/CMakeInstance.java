@@ -3,10 +3,12 @@ package me.walkerknapp.cfi;
 import com.dslplatform.json.DslJson;
 import com.dslplatform.json.runtime.Settings;
 import me.walkerknapp.cfi.structs.CFIObject;
+import me.walkerknapp.cfi.structs.ClientQuery;
 import me.walkerknapp.cfi.structs.Index;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -123,7 +125,7 @@ public class CMakeInstance {
                 }, executorService);
     }
 
-    private <T> CompletableFuture<T> readReplyObject(Class<T> replyClass, String jsonFile) {
+    public <T> CompletableFuture<T> readReplyObject(Class<T> replyClass, String jsonFile) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Path replyObjectPath = getApiReplyPath().resolve(jsonFile);

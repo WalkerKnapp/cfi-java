@@ -21,13 +21,13 @@ public class CodeModelBacktraceGraph {
         @JsonAttribute(mandatory = true)
         public int file;
 
-        @JsonAttribute(mandatory = true)
+        @JsonAttribute
         public int line;
 
-        @JsonAttribute(mandatory = true)
+        @JsonAttribute
         public int command;
 
-        @JsonAttribute(mandatory = true)
+        @JsonAttribute
         public int parent;
     }
 }
