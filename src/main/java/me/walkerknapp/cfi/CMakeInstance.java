@@ -53,7 +53,67 @@ public class CMakeInstance {
                 "--no-warn-unused-cli", project.getSourceDirectory().toAbsolutePath().toString());
     }
 
-    public <T extends CFIObject> CompletableFuture<T> requestObject(CFIQuery<T> query) {
+    public <T extends CFIObject> CompletableFuture<T> queueRequest(CFIQuery<T> query) {
+        return CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        Path queryPath = getApiQueryPath();
+                        Path requestFile = queryPath.resolve(query.getQueryFileName());
+                        Files.createFile(requestFile);
+
+                        Path replyPath = getApiReplyPath();
+                        Path previousIndex = Files.list(replyPath)
+                                .filter(p -> p.getFileName().toString().startsWith("index-"))
+                                .findAny()
+                                .orElse(null);
+
+                        // Spin wait for the previous index file to be gone
+                        while (previousIndex != null && Files.exists(previousIndex)) {
+                            Thread.onSpinWait();
+                        }
+
+                        // Spin wait for a new index file
+                        Path newIndex;
+                        do {
+                            newIndex = Files.list(replyPath)
+                                    .filter(p -> p.getFileName().toString().startsWith("index-"))
+                                    .findAny()
+                                    .orElse(null);
+                        } while (newIndex == null);
+
+                        // Read the index file
+                        Index indexFile;
+
+                        try (InputStream indexIs = Files.newInputStream(newIndex)) {
+                            indexFile = dslJson.deserialize(Index.class, indexIs);
+                        }
+
+                        var replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
+                        if (replies == null) {
+                            throw new IllegalStateException("CMake didn't create a response for our client (" + this.clientName + ").");
+                        }
+                        var queryReply = replies.get(query.getQueryFileName());
+                        if (queryReply == null) {
+                            throw new IllegalStateException("CMake didn't respond to the query " + query.getQueryFileName() + " from client " + this.clientName);
+                        }
+
+                        // Read the object we queried for
+                        T cfiObject;
+                        try (InputStream queryObjectIs = Files.newInputStream(replyPath.resolve(queryReply.jsonFile))) {
+                            cfiObject = dslJson.deserialize(query.getObjClass(), queryObjectIs);
+                        }
+
+                        // Clean up our request file
+                        Files.delete(requestFile);
+
+                        return cfiObject;
+                    } catch (IOException e) {
+                        throw new CompletionException(e);
+                    }
+                }, executorService);
+    }
+
+    public <T extends CFIObject> CompletableFuture<T> immediatelyRequestObject(CFIQuery<T> query) {
         return CompletableFuture
                 .supplyAsync(() -> {
                     try {
@@ -99,7 +159,6 @@ public class CMakeInstance {
                             indexFile = dslJson.deserialize(Index.class, indexIs);
                         }
 
-                        // TODO: Read off this input file
                         var replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
                         if (replies == null) {
                             throw new IllegalStateException("CMake didn't create a response for our client (" + this.clientName + ").");

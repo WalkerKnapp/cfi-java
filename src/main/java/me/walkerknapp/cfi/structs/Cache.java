@@ -26,10 +26,10 @@ public class Cache implements CFIObject {
 
         @CompiledJson
         public static class Property {
-            @JsonAttribute(mandatory = true)
+            @JsonAttribute
             public String name;
 
-            @JsonAttribute(mandatory = true)
+            @JsonAttribute
             public String value;
         }
     }
