@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 8
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Build with Gradle
+        run: ./gradlew assemble
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/libs/*.*
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish
+        run: ./gradlew publish
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          PGP_KEY: ${{ secrets.PGP_KEY }}
+          PGP_KEY_ID: ${{ secrets.PGP_KEY_ID }}
+          PGP_PASSWORD: ${{ secrets.PGP_PASSWORD }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: build-artifacts
+          path: devolay-java/build/libs

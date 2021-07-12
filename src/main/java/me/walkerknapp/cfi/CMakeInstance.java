@@ -3,15 +3,13 @@ package me.walkerknapp.cfi;
 import com.dslplatform.json.DslJson;
 import com.dslplatform.json.runtime.Settings;
 import me.walkerknapp.cfi.structs.CFIObject;
-import me.walkerknapp.cfi.structs.ClientQuery;
 import me.walkerknapp.cfi.structs.Index;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -88,11 +86,11 @@ public class CMakeInstance {
                             indexFile = dslJson.deserialize(Index.class, indexIs);
                         }
 
-                        var replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
+                        HashMap<String, Index.Reply.ReplyFileReference> replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
                         if (replies == null) {
                             throw new IllegalStateException("CMake didn't create a response for our client (" + this.clientName + ").");
                         }
-                        var queryReply = replies.get(query.getQueryFileName());
+                        Index.Reply.ReplyFileReference queryReply = replies.get(query.getQueryFileName());
                         if (queryReply == null) {
                             throw new IllegalStateException("CMake didn't respond to the query " + query.getQueryFileName() + " from client " + this.clientName);
                         }
@@ -159,11 +157,11 @@ public class CMakeInstance {
                             indexFile = dslJson.deserialize(Index.class, indexIs);
                         }
 
-                        var replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
+                        HashMap<String, Index.Reply.ReplyFileReference> replies = indexFile.reply.clientStatelessReplies.get(this.clientName);
                         if (replies == null) {
                             throw new IllegalStateException("CMake didn't create a response for our client (" + this.clientName + ").");
                         }
-                        var queryReply = replies.get(query.getQueryFileName());
+                        Index.Reply.ReplyFileReference queryReply = replies.get(query.getQueryFileName());
                         if (queryReply == null) {
                             throw new IllegalStateException("CMake didn't respond to the query " + query.getQueryFileName() + " from client " + this.clientName);
                         }
