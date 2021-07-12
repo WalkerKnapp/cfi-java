@@ -14,21 +14,23 @@ repositories {
 }
 
 dependencies {
-    implementation("com.dslplatform:dsl-json-java8:1+")
-    annotationProcessor("com.dslplatform:dsl-json-java8:1+")
+    implementation("com.dslplatform:dsl-json-java8:1.9.8")
+    annotationProcessor("com.dslplatform:dsl-json-java8:1.9.8")
 
-    implementation("org.apache.commons:commons-lang3:3+")
+    implementation("org.apache.commons:commons-lang3:3.12.0")
 
-    implementation("org.slf4j:slf4j-api") {
-        version {
-            prefer("2+")
-        }
-    }
+    implementation("org.slf4j:slf4j-api:2.0.0-alpha2")
 }
 
 val sourceJar by tasks.creating(Jar::class) {
     from(sourceSets.main.get().allJava)
     this.archiveClassifier.set("sources")
+}
+
+val javadocJar by tasks.creating(Jar::class) {
+    dependsOn("javadoc")
+    from(tasks.javadoc.get().destinationDir)
+    this.archiveClassifier.set("javadoc")
 }
 
 publishing {
@@ -46,6 +48,7 @@ publishing {
         create<MavenPublication>("cfi-java") {
             from(components["java"])
             artifact(sourceJar)
+            artifact(javadocJar)
 
             groupId = project.group as String
             artifactId = "cfi-java"
