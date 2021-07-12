@@ -5,6 +5,7 @@ import com.dslplatform.json.JsonAttribute;
 
 import java.util.List;
 
+@CompiledJson
 public class CMakeFiles implements CFIObject {
     @JsonAttribute(mandatory = true)
     public Paths paths;
