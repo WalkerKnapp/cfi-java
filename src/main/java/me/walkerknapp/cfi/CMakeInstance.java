@@ -3,6 +3,7 @@ package me.walkerknapp.cfi;
 import com.dslplatform.json.DslJson;
 import com.dslplatform.json.runtime.Settings;
 import me.walkerknapp.cfi.structs.CFIObject;
+import me.walkerknapp.cfi.structs.Directory;
 import me.walkerknapp.cfi.structs.Index;
 
 import java.io.IOException;
@@ -37,6 +38,13 @@ public class CMakeInstance {
         this.executorService = Executors.newFixedThreadPool(Integer.MAX_VALUE);
         this.dslJson = new DslJson<>(Settings.<CMakeInstance>withRuntime().
                 allowArrayFormat(true).includeServiceLoader().withContext(this));
+        // Force the correct readers to be registered
+        // CFI works without these in a development environment, but when assembled in a jar, the information
+        // for these converters is lost somewhere.
+        this.dslJson.registerReader(Index.Reply.class, Index.ReplyConverter.JSON_READER);
+        this.dslJson.registerWriter(Index.Reply.class, Index.ReplyConverter.JSON_WRITER);
+        this.dslJson.registerReader(Directory.Installer.Path.class, Directory.Installer.Path.PathConverter.JSON_READER);
+        this.dslJson.registerWriter(Directory.Installer.Path.class, Directory.Installer.Path.PathConverter.JSON_WRITER);
 
         this.clientName = "cfijava" + UUID.randomUUID().toString().replace("-", "");
     }

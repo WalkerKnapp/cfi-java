@@ -15,7 +15,7 @@ public class Index {
     @JsonAttribute
     public List<Object> objects;
 
-    @JsonAttribute
+    @JsonAttribute(converter = ReplyConverter.class)
     public Reply reply;
 
     @CompiledJson
