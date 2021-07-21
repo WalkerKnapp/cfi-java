@@ -2,14 +2,15 @@ package me.walkerknapp.cfi;
 
 import com.dslplatform.json.DslJson;
 import com.dslplatform.json.runtime.Settings;
+import com.sun.nio.file.SensitivityWatchEventModifier;
 import me.walkerknapp.cfi.structs.CFIObject;
 import me.walkerknapp.cfi.structs.Directory;
 import me.walkerknapp.cfi.structs.Index;
+import org.apache.commons.io.monitor.FileAlterationObserver;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -68,23 +69,38 @@ public class CMakeInstance {
                         Files.createFile(requestFile);
 
                         Path replyPath = getApiReplyPath();
-                        Path previousIndex = Files.list(replyPath)
-                                .filter(p -> p.getFileName().toString().startsWith("index-"))
-                                .findAny()
-                                .orElse(null);
 
-                        // Spin wait for the previous index file to be gone
-                        while (previousIndex != null && Files.exists(previousIndex)) {
-                            Thread.onSpinWait();
-                        }
+                        System.out.println("Starting to spin for index file on " + replyPath.toAbsolutePath());
+                        // Wait for a new index file to be created
+                        WatchService watchService = FileSystems.getDefault().newWatchService();
+                        replyPath.register(watchService, new WatchEvent.Kind[]{ StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY}, SensitivityWatchEventModifier.HIGH);
 
-                        // Spin wait for a new index file
-                        Path newIndex;
+                        Path newIndex = null;
                         do {
-                            newIndex = Files.list(replyPath)
-                                    .filter(p -> p.getFileName().toString().startsWith("index-"))
-                                    .findAny()
-                                    .orElse(null);
+                            WatchKey key;
+                            try {
+                                key = watchService.take();
+                            } catch (InterruptedException e) {
+                                throw new CompletionException(e);
+                            }
+
+                            for (WatchEvent<?> event : key.pollEvents()) {
+                                System.out.println("Got event: " + event.kind());
+                                System.out.println("Context: " + event.context());
+                                if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
+                                    continue;
+                                }
+
+                                WatchEvent<Path> newFileEvent = (WatchEvent<Path>) event;
+                                Path newFile = newFileEvent.context();
+
+                                if (newFile.getFileName().toString().startsWith("index-")) {
+                                    newIndex = replyPath.resolve(newFile);
+                                    break;
+                                }
+                            }
+
+                            key.reset();
                         } while (newIndex == null);
 
                         // Read the index file
@@ -144,13 +160,33 @@ public class CMakeInstance {
                             throw new IllegalStateException("Cmake finished without removing the old API index file.");
                         }
 
-                        // Spin wait for a new index file
-                        Path newIndex;
+                        // Wait for a new index file to be created
+                        WatchService watchService = FileSystems.getDefault().newWatchService();
+                        replyPath.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
+
+                        Path newIndex = null;
                         do {
-                            newIndex = Files.list(replyPath)
-                                    .filter(p -> p.getFileName().toString().startsWith("index-"))
-                                    .findAny()
-                                    .orElse(null);
+                            WatchKey key;
+                            try {
+                                key = watchService.take();
+                            } catch (InterruptedException e) {
+                                throw new CompletionException(e);
+                            }
+
+                            for (WatchEvent<?> event : key.pollEvents()) {
+                                if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
+                                    continue;
+                                }
+
+                                WatchEvent<Path> newFileEvent = (WatchEvent<Path>) event;
+                                Path newFile = newFileEvent.context();
+
+                                if (newFile.startsWith("index-")) {
+                                    newIndex = newFile;
+                                }
+                            }
+
+                            key.reset();
                         } while (newIndex == null && !generationFuture.isDone());
 
                         if (newIndex == null && generationFuture.isDone()) {
