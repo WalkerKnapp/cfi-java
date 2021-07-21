@@ -18,6 +18,7 @@ dependencies {
     annotationProcessor("com.dslplatform:dsl-json-java8:1.9.8")
 
     implementation("org.apache.commons:commons-lang3:3.12.0")
+    implementation("commons-io:commons-io:2.11.0")
 
     implementation("org.slf4j:slf4j-api:2.0.0-alpha2")
 }

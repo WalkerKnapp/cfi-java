@@ -2,12 +2,14 @@ package me.walkerknapp.cfi;
 
 import com.dslplatform.json.DslJson;
 import com.dslplatform.json.runtime.Settings;
-import com.sun.nio.file.SensitivityWatchEventModifier;
 import me.walkerknapp.cfi.structs.CFIObject;
 import me.walkerknapp.cfi.structs.Directory;
 import me.walkerknapp.cfi.structs.Index;
+import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
+import org.apache.commons.io.monitor.FileAlterationMonitor;
 import org.apache.commons.io.monitor.FileAlterationObserver;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.*;
@@ -17,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Represents a generated folder from an {@link CMakeProject}.
@@ -70,43 +73,31 @@ public class CMakeInstance {
 
                         Path replyPath = getApiReplyPath();
 
-                        System.out.println("Starting to spin for index file on " + replyPath.toAbsolutePath());
-                        // Wait for a new index file to be created
-                        WatchService watchService = FileSystems.getDefault().newWatchService();
-                        replyPath.register(watchService, new WatchEvent.Kind[]{ StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY}, SensitivityWatchEventModifier.HIGH);
+                        AtomicReference<Path> newIndex = new AtomicReference<>();
 
-                        Path newIndex = null;
-                        do {
-                            WatchKey key;
-                            try {
-                                key = watchService.take();
-                            } catch (InterruptedException e) {
-                                throw new CompletionException(e);
-                            }
-
-                            for (WatchEvent<?> event : key.pollEvents()) {
-                                System.out.println("Got event: " + event.kind());
-                                System.out.println("Context: " + event.context());
-                                if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
-                                    continue;
-                                }
-
-                                WatchEvent<Path> newFileEvent = (WatchEvent<Path>) event;
-                                Path newFile = newFileEvent.context();
-
-                                if (newFile.getFileName().toString().startsWith("index-")) {
-                                    newIndex = replyPath.resolve(newFile);
-                                    break;
+                        // Wait for the new index file to be created
+                        FileAlterationObserver observer = new FileAlterationObserver(replyPath.toFile());
+                        observer.addListener(new FileAlterationListenerAdaptor() {
+                            @Override
+                            public void onFileCreate(File file) {
+                                if (file.getName().startsWith("index-")) {
+                                    newIndex.set(file.toPath());
                                 }
                             }
+                        });
+                        FileAlterationMonitor monitor = new FileAlterationMonitor(500, observer);
+                        monitor.start();
 
-                            key.reset();
-                        } while (newIndex == null);
+                        while (newIndex.get() == null) {
+                            Thread.onSpinWait();
+                        }
+
+                        monitor.stop();
 
                         // Read the index file
                         Index indexFile;
 
-                        try (InputStream indexIs = Files.newInputStream(newIndex)) {
+                        try (InputStream indexIs = Files.newInputStream(newIndex.get())) {
                             indexFile = dslJson.deserialize(Index.class, indexIs);
                         }
 
@@ -129,7 +120,7 @@ public class CMakeInstance {
                         Files.delete(requestFile);
 
                         return cfiObject;
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         throw new CompletionException(e);
                     }
                 }, executorService);
@@ -144,52 +135,31 @@ public class CMakeInstance {
                         Files.createFile(requestFile);
 
                         Path replyPath = getApiReplyPath();
-                        Path previousIndex = Files.list(replyPath)
-                                .filter(p -> p.getFileName().toString().startsWith("index-"))
-                                .findAny()
-                                .orElse(null);
 
                         CompletableFuture<Void> generationFuture = generate();
 
-                        // Spin wait for the previous index file to be gone
-                        while (previousIndex != null && Files.exists(previousIndex) && !generationFuture.isDone()) {
+                        AtomicReference<Path> newIndex = new AtomicReference<>();
+
+                        // Wait for the new index file to be created
+                        FileAlterationObserver observer = new FileAlterationObserver(replyPath.toFile());
+                        observer.addListener(new FileAlterationListenerAdaptor() {
+                            @Override
+                            public void onFileCreate(File file) {
+                                if (file.getName().startsWith("index-")) {
+                                    newIndex.set(file.toPath());
+                                }
+                            }
+                        });
+                        FileAlterationMonitor monitor = new FileAlterationMonitor(500, observer);
+                        monitor.start();
+
+                        while (newIndex.get() == null && !generationFuture.isDone()) {
                             Thread.onSpinWait();
                         }
 
-                        if (previousIndex != null && Files.exists(previousIndex) && generationFuture.isDone()) {
-                            throw new IllegalStateException("Cmake finished without removing the old API index file.");
-                        }
+                        monitor.stop();
 
-                        // Wait for a new index file to be created
-                        WatchService watchService = FileSystems.getDefault().newWatchService();
-                        replyPath.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
-
-                        Path newIndex = null;
-                        do {
-                            WatchKey key;
-                            try {
-                                key = watchService.take();
-                            } catch (InterruptedException e) {
-                                throw new CompletionException(e);
-                            }
-
-                            for (WatchEvent<?> event : key.pollEvents()) {
-                                if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
-                                    continue;
-                                }
-
-                                WatchEvent<Path> newFileEvent = (WatchEvent<Path>) event;
-                                Path newFile = newFileEvent.context();
-
-                                if (newFile.startsWith("index-")) {
-                                    newIndex = newFile;
-                                }
-                            }
-
-                            key.reset();
-                        } while (newIndex == null && !generationFuture.isDone());
-
-                        if (newIndex == null && generationFuture.isDone()) {
+                        if (newIndex.get() == null && generationFuture.isDone()) {
                             throw new IllegalStateException("Cmake finished without generating a new API index file.");
                         }
 
@@ -197,7 +167,7 @@ public class CMakeInstance {
                         Index indexFile;
 
                         assert newIndex != null;
-                        try (InputStream indexIs = Files.newInputStream(newIndex)) {
+                        try (InputStream indexIs = Files.newInputStream(newIndex.get())) {
                             indexFile = dslJson.deserialize(Index.class, indexIs);
                         }
 
@@ -220,7 +190,7 @@ public class CMakeInstance {
                         Files.delete(requestFile);
 
                         return cfiObject;
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         throw new CompletionException(e);
                     }
                 }, executorService);
