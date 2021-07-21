@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    implementation "me.walkerknapp:cfi-java:0.0.1"
+    implementation "me.walkerknapp:cfi-java:0.0.2"
 }
 ```
 
@@ -19,7 +19,7 @@ dependencies {
 <dependency>
     <groupId>me.walkerknapp</groupId>
     <artifactId>cfi-java</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
 </dependency>
 ```
 
